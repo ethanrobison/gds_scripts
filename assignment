@@ -1,0 +1,36 @@
+#!/bin/zsh
+
+
+echo $DUE
+
+CID=105465
+
+SECRET=$(cat ./secret)
+AUTH="Authorization: Bearer $SECRET"
+
+BASE="https://canvas.northwestern.edu/api/v1/"
+
+# work
+
+DUE_DAY=$(date --iso-8601 -d Sun)
+DUE_TIME="T23:59:59-06:00"
+
+DUE_AT="${DUE_DAY}${DUE_TIME}"
+
+NAME="Teammate Evaluations $DUE_DAY"
+DESC="Use the templates found in the files tab.<br>Change only the score values for your teammates (leave yours at 100).<br>100 = They're doing as much as I am.<br>200 = They're doing twice as much.<br>50  = They're doing half as much."
+
+SUB_TYPE="online_upload"
+ALLOWED_EXT="csv"
+
+POINTS="20"
+
+curl -X POST "$BASE/courses/$CID/assignments" \
+    -H "$AUTH" \
+    -F "assignment[name]=$NAME" \
+    -F "assignment[description]=$DESC" \
+    -F "assignment[submission_types]=$SUB_TYPE" \
+    -F "assignment[allowed_extensions]=$ALLOWED_EXT" \
+    -F "assignment[due_at]=$DUE_AT" \
+    -F "assignment[points_possible]=$POINTS" \
+    -F "assignment[published]=true"

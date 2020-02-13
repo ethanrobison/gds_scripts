@@ -1,0 +1,128 @@
+#!/bin/zsh
+
+validate () {
+    REST=$(tail -n +3 "$1")
+    LINES=$(echo "$REST" | wc -l)
+    if (( $LINES < 2 || $LINES > 3 ))
+    then
+        echo "\nToo many/few lines."
+        return 0
+    fi
+
+    CHUNKS=("${(f)REST}")
+    for c in $CHUNKS
+    do
+        if ! echo $c | grep -q -E '[a-z]{3}[0-9]{3,4},[0-9]{,3}'
+        then
+            echo "Poorly formatted.\n"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+sub_grade () {
+    validate "$3"
+    MUL=$?
+
+    local BASE=100
+
+    if [ "$1" != "false" ]
+    then
+        EPOCH=$(date -d $2 +%s)
+        DIFF=$(((($EPOCH - $DUE_SEC) / 86400) + 1))
+
+        BASE=$((100 - 25 * $DIFF))
+    fi
+
+    return $(($BASE * $MUL))
+}
+
+
+CID=105465
+ASSIGN=678850
+GRADE_ASSIGN=111
+
+SEC=$(cat ./secret)
+AUTH="Authorization: Bearer $SEC"
+
+BASE="https://canvas.northwestern.edu/api/v1"
+
+TEMP_DIR=temp_evaluate
+mkdir $TEMP_DIR
+
+# calculate due date epoch
+
+DUE_DATE=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN" \
+    -H "$AUTH" \
+    | jq -r '.due_at')
+
+DUE_SEC=$(date -d "$DUE_DATE" +%s)
+
+# download subs
+
+SUBS=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN/submissions" \
+    -H "$AUTH" \
+    -F "per_page=99")
+
+
+TRIMMED=$(echo $SUBS | \
+    jq '[.[] | {
+        uid: .user_id,
+        timestamp: .submitted_at,
+        late: .late,
+        url: .attachments[] .url
+    }]')
+
+
+# upload grades i: original submission
+
+LEN=$(echo $TRIMMED | jq '. | length')
+LEN=$((LEN - 1))
+
+for i in {0..$LEN}
+do
+    SUB=$(echo $TRIMMED | jq ".[$i]")
+    USER=$(echo $SUB | jq '.uid')
+
+    LATE=$(echo $SUB | jq '.late')
+
+    TIMESTAMP=$(echo $SUB | jq -r '.timestamp')
+
+    URL=$(echo $SUB | jq -r '.url')
+    FILE="$TEMP_DIR/$USER"
+    wget -q -O "$FILE" "$URL"
+
+    sub_grade "$LATE" "$TIMESTAMP" "$FILE"
+    GRADE=$?
+    echo "$USER submission grade: $GRADE"
+
+#    curl -X PUT "$BASE/courses/$CID/assignments/$ASSIGN/submissions/$USER" \
+#        -H "$AUTH" \
+#        -F "submission[posted_grade]=$GRADE%"
+done
+
+## Grade or comment on multiple submissions <-- should do this TODO
+
+# process subs
+
+typeset -A counts
+typeset -A totals
+
+for file in ./$TEMP_DIR/**/*
+do
+    REST=$(tail -n +3 "$file")
+    CHUNKS=(${(f)REST})
+
+    for c in $CHUNKS
+    do
+        echo $c
+    done
+done
+
+# upload grads ii: teammate score
+
+# cleanup
+
+# rm -rf $TEMP_DIR

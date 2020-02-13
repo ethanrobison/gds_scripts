@@ -1,0 +1,88 @@
+#!/bin/zsh
+
+
+
+CID=105465
+ASSIGN=679568
+
+SEC=$(cat ./secret)
+AUTH="Authorization: Bearer $SEC"
+
+BASE="https://canvas.northwestern.edu/api/v1"
+
+TEMP_DIR=temp_evaluate
+#mkdir $TEMP_DIR
+
+# process subs
+
+typeset -A COUNTS 
+typeset -A TOTALS
+
+for file in ./$TEMP_DIR/**/*
+do
+    REST=$(tail -n +3 "$file")
+    CHUNKS=(${(f)REST})
+
+    for c in $CHUNKS
+    do
+        PARTS=("${(@s/,/)c}")
+        NID=$PARTS[1]
+        SCORE=$(echo $PARTS[2] | sed 's///g')
+
+        if ! (( ${+COUNTS[$NID]} ))
+        then
+            COUNTS[$NID]=0
+            TOTALS[$NID]=0
+        fi
+
+        NEWCOUNT=$((1 + $COUNTS[$NID]))
+        NEWTOTAL=$(($SCORE + $TOTALS[$NID]))
+        COUNTS[$NID]=$NEWCOUNT
+        TOTALS[$NID]=$NEWTOTAL
+    done
+done
+
+USERS=$(curl -s -X GET "$BASE/courses/$CID/users" \
+    -H "$AUTH" \
+    -F "per_page=99" \
+    -F "enrollment_type[]=student")
+
+MAP=$(echo $USERS | jq -r '[.[] | { uid: .id, netid: .sis_user_id }]')
+
+LEN=$(echo $MAP | jq '. | length')
+LEN=$((LEN - 1))
+
+typeset -A NETTOSIS
+
+for i in {0..$LEN}; do
+    CHUNK=$(echo $MAP | jq ".[$i]")
+    USER=$(echo $CHUNK | jq -r '.uid')
+    NETID=$(echo $CHUNK | jq -r '.netid')
+    NETTOSIS[$NETID]=$USER
+done
+
+for key value in ${(kv)NETTOSIS}; do
+    if ! (( ${+COUNTS[$key]} ))
+    then
+        echo "missing $key"
+    else
+        RESULT=$(( $TOTALS[$key] / $COUNTS[$key] ))
+        if (( $RESULT > 100 )); then RESULT=100; fi
+        echo "$key $value $RESULT"
+
+        FOO="$BASE/courses/$CID/assignments/$ASSIGN/submissions/$value/" 
+        curl -s -X PUT $FOO \
+            -H "$AUTH" \
+            -F "submission[posted_grade]=$RESULT%"
+
+#        curl -s -X PUT 
+#            -H "$AUTH"\
+#            -F "submission[posted_grade]=$RESULT%"
+    fi
+done
+
+# upload grads ii: teammate score
+
+# cleanup
+
+# rm -rf $TEMP_DIR

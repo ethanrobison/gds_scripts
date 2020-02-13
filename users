@@ -1,0 +1,24 @@
+#!/bin/zsh
+
+SEC=$(cat ./secret)
+AUTH="Authorization: Bearer $SEC"
+
+BASE="https://canvas.northwestern.edu/api/v1"
+CID=105465
+
+USERS=$(curl -s -X GET "$BASE/courses/$CID/users" \
+    -H "$AUTH" \
+    -F "per_page=99" \
+    -F "enrollment_type[]=student")
+
+MAP=$(echo $USERS | jq '[.[] | { uid: .id, netid: .sis_user_id }]')
+
+LEN=$(echo $MAP | jq '. | length')
+LEN=$((LEN - 1))
+
+for i in {0..$LEN}
+do
+    CHUNK=$(echo $MAP | jq ".[$i]")
+    USER=$(echo $CHUNK | jq '.uid')
+    NETID=$(echo $CHUNK | jq '.netid')
+done
