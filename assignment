@@ -28,7 +28,7 @@ POINTS="20"
 
 echo "Posting assignment."
 
-RES=$(curl -X POST "$BASE/courses/$CID/assignments" \
+RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
     -H "$AUTH" \
     -F "assignment[name]=$NAME" \
     -F "assignment[description]=$DESC" \
@@ -37,8 +37,6 @@ RES=$(curl -X POST "$BASE/courses/$CID/assignments" \
     -F "assignment[due_at]=$DUE_AT" \
     -F "assignment[points_possible]=$POINTS" \
     -F "assignment[published]=true")
-
-echo "$RES"
 
 ASSIGN_ID=$(echo "$RES" | jq '.id')
 echo "Saving assignment ID in file $LAST_FILE_ID, ID: $ASSIGN_ID"
