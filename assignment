@@ -2,12 +2,12 @@
 
 CID=105465
 
-SECRET=$(cat ./.secret)
+SECRET=$(cat ./"$1")
 AUTH="Authorization: Bearer $SECRET"
 
 BASE="https://canvas.northwestern.edu/api/v1/"
 
-LAST_FILE_ID="$1"
+LAST_FILE_ID="$2"
 
 # work
 
