@@ -2,11 +2,15 @@ rm=rm -rf
 
 temp_dir=csvs
 
+make_evaluation=./assignment
+
+last_assignment=.lastassignment
+
 all:
 	echo "Hello world"
 
-evaluations:
-	./assignment
+postassignment:
+	$(make_evaluation) $(last_assignment)
 
 templates: clean
 	./createtemplates
