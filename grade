@@ -39,11 +39,14 @@ sub_grade () {
     return $(($BASE * $MUL))
 }
 
-SEC=$(cat $1)
-AUTH="Authorization: Bearer $SEC"
+AUTH="Authorization: Bearer $1"
+CID=$2
+ASSIGN=$3
 
-CID=105465
-ASSIGN=$(cat $2)
+echo $AUTH
+echo $CID
+echo $ASSIGN
+return 0
 
 BASE="https://canvas.northwestern.edu/api/v1"
 
@@ -64,7 +67,6 @@ DUE_SEC=$(gdate -d "$DUE_DATE" +%s)
 SUBS=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN/submissions" \
     -H "$AUTH" \
     -F "per_page=99")
-
 
 TRIMMED=$(echo $SUBS | \
     jq '[.[] | {
@@ -96,10 +98,10 @@ do
     GRADE=$?
     echo "$USER submission grade: $GRADE"
 
-#    OUTPUT=$(curl -s -X PUT \
-#        "$BASE/courses/$CID/assignments/$ASSIGN/submissions/$USER" \
-#        -H "$AUTH" \
-#        -F "submission[posted_grade]=$GRADE%")
+    OUTPUT=$(curl -s -X PUT \
+        "$BASE/courses/$CID/assignments/$ASSIGN/submissions/$USER" \
+        -H "$AUTH" \
+        -F "submission[posted_grade]=$GRADE%")
 done
 
 # TODO grade multiple submissions at once (one PUT request)

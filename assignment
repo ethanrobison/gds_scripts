@@ -1,9 +1,8 @@
 #!/bin/zsh
 
-CID=105465
-
-SECRET=$(cat ./"$1")
-AUTH="Authorization: Bearer $SECRET"
+AUTH="Authorization: Bearer $1"
+CID=$2
+ASSIGN=$3
 
 BASE="https://canvas.northwestern.edu/api/v1/"
 
