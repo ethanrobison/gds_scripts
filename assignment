@@ -19,10 +19,8 @@ echo "Assignment due at: $DUE_AT"
 
 NAME="Teammate Evaluations $DUE_DAY"
 DESC="Use the templates found in the files tab.<br>Change only the score values for your teammates (leave yours at 100).<br>100 = They're doing as much as I am.<br>200 = They're doing twice as much.<br>50  = They're doing half as much."
-
 SUB_TYPE="online_upload"
 ALLOWED_EXT="csv"
-
 POINTS="20"
 
 echo "Posting assignment."
