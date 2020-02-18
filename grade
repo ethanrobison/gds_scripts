@@ -12,7 +12,7 @@ validate () {
     CHUNKS=("${(f)REST}")
     for c in $CHUNKS
     do
-        if ! echo $c | ggrep -q -E '[a-z]{3}[0-9]{3,4},[0-9]{,3}'
+        if ! echo $c | grep -q -E '[a-z]{3}[0-9]{3,4},[0-9]{,3}'
         then
             echo "Poorly formatted.\n"
             return 0
@@ -30,7 +30,7 @@ sub_grade () {
 
     if [ "$1" != "false" ]
     then
-        EPOCH=$(gdate -d $2 +%s)
+        EPOCH=$(date -d $2 +%s)
         DIFF=$(((($EPOCH - $DUE_SEC) / 86400) + 1))
 
         BASE=$((100 - 25 * $DIFF))
@@ -42,11 +42,6 @@ sub_grade () {
 AUTH="Authorization: Bearer $1"
 CID=$2
 ASSIGN=$3
-
-echo $AUTH
-echo $CID
-echo $ASSIGN
-return 0
 
 BASE="https://canvas.northwestern.edu/api/v1"
 
@@ -60,7 +55,7 @@ DUE_DATE=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN" \
     | jq -r '.due_at')
 
 
-DUE_SEC=$(gdate -d "$DUE_DATE" +%s)
+DUE_SEC=$(date -d "$DUE_DATE" +%s)
 
 # download subs
 
