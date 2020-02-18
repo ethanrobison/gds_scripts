@@ -39,12 +39,10 @@ sub_grade () {
     return $(($BASE * $MUL))
 }
 
-
 CID=105465
-ASSIGN=678850
-GRADE_ASSIGN=111
+ASSIGN=$(cat ./.lastassignment)
 
-SEC=$(cat ./secret)
+SEC=$(cat ./.secret)
 AUTH="Authorization: Bearer $SEC"
 
 BASE="https://canvas.northwestern.edu/api/v1"
@@ -66,7 +64,6 @@ SUBS=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN/submissions" \
     -H "$AUTH" \
     -F "per_page=99")
 
-
 TRIMMED=$(echo $SUBS | \
     jq '[.[] | {
         uid: .user_id,
@@ -74,7 +71,6 @@ TRIMMED=$(echo $SUBS | \
         late: .late,
         url: .attachments[] .url
     }]')
-
 
 # upload grades i: original submission
 
@@ -98,17 +94,17 @@ do
     GRADE=$?
     echo "$USER submission grade: $GRADE"
 
-#    curl -X PUT "$BASE/courses/$CID/assignments/$ASSIGN/submissions/$USER" \
-#        -H "$AUTH" \
-#        -F "submission[posted_grade]=$GRADE%"
+    curl -X PUT "$BASE/courses/$CID/assignments/$ASSIGN/submissions/$USER" \
+        -H "$AUTH" \
+        -F "submission[posted_grade]=$GRADE%"
 done
 
-## Grade or comment on multiple submissions <-- should do this TODO
+# TODO grade multiple submissions at once (one PUT request)
 
 # process subs
 
-typeset -A counts
-typeset -A totals
+typeset -A COUNTS 
+typeset -A TOTALS
 
 for file in ./$TEMP_DIR/**/*
 do
@@ -117,12 +113,76 @@ do
 
     for c in $CHUNKS
     do
-        echo $c
+        PARTS=("${(@s/,/)c}")
+        NID=$PARTS[1]
+        SCORE=$(echo $PARTS[2] | sed 's///g')
+
+        if ! (( ${+COUNTS[$NID]} ))
+        then
+            COUNTS[$NID]=0
+            TOTALS[$NID]=0
+        fi
+
+        NEWCOUNT=$((1 + $COUNTS[$NID]))
+        NEWTOTAL=$(($SCORE + $TOTALS[$NID]))
+        COUNTS[$NID]=$NEWCOUNT
+        TOTALS[$NID]=$NEWTOTAL
     done
 done
 
-# upload grads ii: teammate score
+# TODO move this out to another script and store a local version
 
-# cleanup
+USERS=$(curl -s -X GET "$BASE/courses/$CID/users" \
+    -H "$AUTH" \
+    -F "per_page=99" \
+    -F "enrollment_type[]=student")
 
-# rm -rf $TEMP_DIR
+MAP=$(echo $USERS | jq -r '[.[] | { uid: .id, netid: .sis_user_id }]')
+
+LEN=$(echo $MAP | jq '. | length')
+LEN=$((LEN - 1))
+
+typeset -A NETTOSIS
+
+for i in {0..$LEN}; do
+    CHUNK=$(echo $MAP | jq ".[$i]")
+    USER=$(echo $CHUNK | jq -r '.uid')
+    NETID=$(echo $CHUNK | jq -r '.netid')
+    NETTOSIS[$NETID]=$USER
+done
+
+# make new assignment
+
+NAME="Teammate Evaluations $DUE_DATE Results"
+DESC="Results for your teammate evaluations from the posted date. The average of scores assigned to you from your team members (capped at 100)."
+SUB_TYPE="none"
+POINTS="40"
+
+RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
+    -H "$AUTH" \
+    -F "assignment[name]=$NAME" \
+    -F "assignment[description]=$DESC" \
+    -F "assignment[submission_types]=$SUB_TYPE" \
+    -F "assignment[points_possible]=$POINTS" \
+    -F "assignment[published]=false")
+
+NEW_ASSIGN=$(echo "$RES" | jq '.id')
+
+# upload grades
+for key value in ${(kv)NETTOSIS}; do
+    if ! (( ${+COUNTS[$key]} ))
+    then
+        echo "missing $key"
+    else
+        RESULT=$(( $TOTALS[$key] / $COUNTS[$key] ))
+        if (( $RESULT > 100 )); then RESULT=100; fi
+        echo "$key $value $RESULT"
+
+        FOO="$BASE/courses/$CID/assignments/$NEW_ASSIGN/submissions/$value/" 
+        curl -s -X PUT $FOO \
+            -H "$AUTH" \
+            -F "submission[posted_grade]=$RESULT%"
+    fi
+done
+
+rm -rf $TEMP_DIR
