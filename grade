@@ -39,11 +39,11 @@ sub_grade () {
     return $(($BASE * $MUL))
 }
 
-CID=105465
-ASSIGN=$(cat ./.lastassignment)
-
-SEC=$(cat ./.secret)
+SEC=$(cat $1)
 AUTH="Authorization: Bearer $SEC"
+
+CID=105465
+ASSIGN=$(cat $2)
 
 BASE="https://canvas.northwestern.edu/api/v1"
 
