@@ -1,14 +1,11 @@
 #!/bin/zsh
 
-AUTH="Authorization: Bearer $1"
-CID=$2
-ASSIGN=$3
+CID=$1
+AUTH="Authorization: Bearer $(cat $2)"
+EVAL_FILE=$3
+RESULTS_FILE=$4
 
-BASE="https://canvas.northwestern.edu/api/v1/"
-
-LAST_FILE_ID="$2"
-
-# work
+# calculate due date 1
 
 DUE_DAY=$(date --iso-8601 -d Sun)
 DUE_TIME="T23:59:59-06:00"
@@ -17,13 +14,17 @@ DUE_AT="${DUE_DAY}${DUE_TIME}"
 
 echo "Assignment due at: $DUE_AT"
 
+# assignment 1 (evaluations)
+
 NAME="Teammate Evaluations $DUE_DAY"
 DESC="Use the templates found in the files tab.<br>Change only the score values for your teammates (leave yours at 100).<br>100 = They're doing as much as I am.<br>200 = They're doing twice as much.<br>50  = They're doing half as much."
 SUB_TYPE="online_upload"
 ALLOWED_EXT="csv"
 POINTS="20"
 
-echo "Posting assignment."
+echo "Posting assignment 1"
+
+BASE="https://canvas.northwestern.edu/api/v1/"
 
 RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
     -H "$AUTH" \
@@ -36,7 +37,28 @@ RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
     -F "assignment[published]=true")
 
 ASSIGN_ID=$(echo "$RES" | jq '.id')
-echo "Saving assignment ID in file $LAST_FILE_ID, ID: $ASSIGN_ID"
-echo "$ASSIGN_ID" > "$LAST_FILE_ID"
+echo "Saving assignment ID in file $EVAL_FILE, ID: $ASSIGN_ID"
+echo "$ASSIGN_ID" > "$EVAL_FILE"
+
+# assignment 2 (crunched numbers)
+
+NAME="Teammate Evaluations $DUE_DAY Results"
+DESC="Results for your teammate evaluations from the posted date. The average of scores assigned to you from your team members (capped at 100)."
+SUB_TYPE="none"
+POINTS="40"
+
+echo "posting assignment 2"
+
+RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
+    -H "$AUTH" \
+    -F "assignment[name]=$NAME" \
+    -F "assignment[description]=$DESC" \
+    -F "assignment[submission_types]=$SUB_TYPE" \
+    -F "assignment[points_possible]=$POINTS" \
+    -F "assignment[published]=false") # important! hide this from the youths :)
+
+ASSIGN_ID=$(echo "$RES" | jq '.id')
+echo "Saving assignment ID in file $RESULTS_FILE, ID: $ASSIGN_ID"
+echo "$ASSIGN_ID" > "$RESULTS_FILE"
 
 return 0

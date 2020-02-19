@@ -1,5 +1,11 @@
 #!/bin/zsh
 
+
+CID=$1
+AUTH="Authorization: Bearer $(cat $2)"
+ASSIGN_ID=$(cat $3)
+RESULTS_ID=$(cat $4)
+
 validate () {
     REST=$(tail -n +3 "$1")
     LINES=$(echo "$REST" | wc -l)
@@ -23,9 +29,6 @@ validate () {
 }
 
 sub_grade () {
-    validate "$3"
-    MUL=$?
-
     local BASE=100
 
     if [ "$1" != "false" ]
@@ -36,12 +39,20 @@ sub_grade () {
         BASE=$((100 - 25 * $DIFF))
     fi
 
+    validate "$3"
+    MUL=$?
     return $(($BASE * $MUL))
 }
 
-AUTH="Authorization: Bearer $1"
-CID=$2
-ASSIGN=$3
+
+# check assignment i
+# check assignment ii
+# check people
+# check submissions
+# grade submissions
+# crunch numbers on submissions
+# publish assignment ii
+# grade assignment ii
 
 BASE="https://canvas.northwestern.edu/api/v1"
 
@@ -50,7 +61,7 @@ mkdir -p $TEMP_DIR
 
 # calculate due date epoch
 
-DUE_DATE=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN" \
+DUE_DATE=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN_ID" \
     -H "$AUTH" \
     | jq -r '.due_at')
 
@@ -59,7 +70,7 @@ DUE_SEC=$(date -d "$DUE_DATE" +%s)
 
 # download subs
 
-SUBS=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN/submissions" \
+SUBS=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN_ID/submissions" \
     -H "$AUTH" \
     -F "per_page=99")
 
@@ -94,7 +105,7 @@ do
     echo "$USER submission grade: $GRADE"
 
     OUTPUT=$(curl -s -X PUT \
-        "$BASE/courses/$CID/assignments/$ASSIGN/submissions/$USER" \
+        "$BASE/courses/$CID/assignments/$ASSIGN_ID/submissions/$USER" \
         -H "$AUTH" \
         -F "submission[posted_grade]=$GRADE%")
 done
@@ -151,24 +162,15 @@ for i in {0..$LEN}; do
     NETTOSIS[$NETID]=$USER
 done
 
-# make new assignment
+# publish results assignment
 
-NAME="Teammate Evaluations $DUE_DATE Results"
-DESC="Results for your teammate evaluations from the posted date. The average of scores assigned to you from your team members (capped at 100)."
-SUB_TYPE="none"
-POINTS="40"
-
-RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
+FOO=$(curl -s -X PUT \
+    "$BASE/courses/$CID/assignments/$RESULTS_ID/" \
     -H "$AUTH" \
-    -F "assignment[name]=$NAME" \
-    -F "assignment[description]=$DESC" \
-    -F "assignment[submission_types]=$SUB_TYPE" \
-    -F "assignment[points_possible]=$POINTS" \
     -F "assignment[published]=true")
 
-NEW_ASSIGN=$(echo "$RES" | jq '.id')
-
 # upload grades
+
 for netid sisid in ${(kv)NETTOSIS}; do
     if ! (( ${+COUNTS[$netid]} ))
     then
@@ -178,8 +180,8 @@ for netid sisid in ${(kv)NETTOSIS}; do
         if (( $RESULT > 100 )); then RESULT=100; fi
         echo "$netid $sisid $RESULT"
 
-        OUTPUT=$(curl -s -X PUT \
-            "$BASE/courses/$CID/assignments/$NEW_ASSIGN/submissions/$sisid" \
+        FOO=$(curl -s -X PUT \
+            "$BASE/courses/$CID/assignments/$RESULTS_ID/submissions/$sisid" \
             -H "$AUTH" \
             -F "submission[posted_grade]=$RESULT%")
     fi
