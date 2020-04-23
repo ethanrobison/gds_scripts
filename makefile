@@ -1,7 +1,7 @@
 rm=rm -rf
 
-make_evaluation=./assignment
-grade_evaluations=./grade
+make_evaluations=./evalutation_make
+grade_evaluations=./evalutation_grade
 
 secret=.secret
 eval_assignment=.evalid
@@ -14,7 +14,7 @@ all:
 	echo "Hello world"
 
 postassignment:
-	$(make_evaluation) $(cid) $(secret) $(eval_assignment) $(results_assignment)
+	$(make_evaluations) $(cid) $(secret) $(eval_assignment) $(results_assignment)
 
 gradeassignment:
 	$(grade_evaluations) $(cid) $(secret) $(eval_assignment) $(results_assignment)
