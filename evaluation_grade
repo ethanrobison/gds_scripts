@@ -1,25 +1,25 @@
 #!/bin/zsh
 
-
 CID=$1
 AUTH="Authorization: Bearer $(cat $2)"
 ASSIGN_ID=$(cat $3)
 RESULTS_ID=$(cat $4)
 
+BASE="https://canvas.northwestern.edu/api/v1"
+
+TEMP_DIR=temp_evaluate
+mkdir -p $TEMP_DIR
+
 validate () {
     REST=$(tail -n +3 "$1")
-    LINES=$(echo "$REST" | wc -l)
-    if (( $LINES < 2 || $LINES > 3 ))
-    then
+    LINES=$(wc -l <<< $REST)
+    if (( $LINES < 2 || $LINES > 3 )); then
         echo "\nToo many/few lines."
         return 0
     fi
 
-    CHUNKS=("${(f)REST}")
-    for c in $CHUNKS
-    do
-        if ! echo $c | grep -q -E '[a-z]{3}[0-9]{3,4},[0-9]{,3}'
-        then
+    for c in ${(f)REST}; do
+        if ! rg -q '[a-z]{3}[0-9]{3,4},[0-9]{0,3}' <<< $c; then
             echo "Poorly formatted.\n"
             return 0
         fi
@@ -31,9 +31,8 @@ validate () {
 sub_grade () {
     local BASE=100
 
-    if [ "$1" != "false" ]
-    then
-        EPOCH=$(date -d $2 +%s)
+    if [ "$1" != "false" ]; then
+        EPOCH=$(gdate -d $2 +%s)
         DIFF=$(((($EPOCH - $DUE_SEC) / 86400) + 1))
 
         BASE=$((100 - 25 * $DIFF))
@@ -44,59 +43,36 @@ sub_grade () {
     return $(($BASE * $MUL))
 }
 
-
-# check assignment i
-# check assignment ii
-# check people
-# check submissions
-# grade submissions
-# crunch numbers on submissions
-# publish assignment ii
-# grade assignment ii
-
-BASE="https://canvas.northwestern.edu/api/v1"
-
-TEMP_DIR=temp_evaluate
-mkdir -p $TEMP_DIR
-
 # calculate due date epoch
-
 DUE_DATE=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN_ID" \
     -H "$AUTH" \
     | jq -r '.due_at')
 
-
-DUE_SEC=$(date -d "$DUE_DATE" +%s)
+DUE_SEC=$(gdate -d "$DUE_DATE" +%s)
 
 # download subs
-
 SUBS=$(curl -s -X GET "$BASE/courses/$CID/assignments/$ASSIGN_ID/submissions" \
     -H "$AUTH" \
     -F "per_page=99")
 
-TRIMMED=$(echo $SUBS | \
-    jq '[.[] | {
+TRIMMED=$(jq '[.[] | {
         uid: .user_id,
         timestamp: .submitted_at,
         late: .late,
-        url: .attachments[]? .url
-    }]')
+        url: .attachments[]? .url }]' <<< $SUBS)
 
 # upload grades i: original submission
+LEN=$(($(jq '. | length' <<< $TRIMMED ) - 1))
 
-LEN=$(echo $TRIMMED | jq '. | length')
-LEN=$((LEN - 1))
+for i in {0..$LEN}; do
+    SUB=$(jq ".[$i]" <<< $TRIMMED)
+    USER=$(jq '.uid' <<< $SUB)
 
-for i in {0..$LEN}
-do
-    SUB=$(echo $TRIMMED | jq ".[$i]")
-    USER=$(echo $SUB | jq '.uid')
+    LATE=$(jq '.late' <<< $SUB)
 
-    LATE=$(echo $SUB | jq '.late')
+    TIMESTAMP=$(jq -r '.timestamp' <<< $SUB)
 
-    TIMESTAMP=$(echo $SUB | jq -r '.timestamp')
-
-    URL=$(echo $SUB | jq -r '.url')
+    URL=$(jq -r '.url' <<< $SUB)
     FILE="$TEMP_DIR/$USER"
     wget -q -O "$FILE" "$URL"
 
@@ -104,10 +80,10 @@ do
     GRADE=$?
     echo "$USER submission grade: $GRADE"
 
-    OUTPUT=$(curl -s -X PUT \
-        "$BASE/courses/$CID/assignments/$ASSIGN_ID/submissions/$USER" \
-        -H "$AUTH" \
-        -F "submission[posted_grade]=$GRADE%")
+#    OUTPUT=$(curl -s -X PUT \
+#        "$BASE/courses/$CID/assignments/$ASSIGN_ID/submissions/$USER" \
+#        -H "$AUTH" \
+#        -F "submission[posted_grade]=$GRADE%")
 done
 
 # TODO grade multiple submissions at once (one PUT request)
@@ -117,19 +93,14 @@ done
 typeset -A COUNTS 
 typeset -A TOTALS
 
-for file in ./$TEMP_DIR/**/*
-do
+for file in ./$TEMP_DIR/**/*; do
     REST=$(tail -n +3 "$file")
-    CHUNKS=(${(f)REST})
-
-    for c in $CHUNKS
-    do
+    for c in ${(f)REST}; do
         PARTS=("${(@s/,/)c}")
         NID=$PARTS[1]
-        SCORE=$(echo $PARTS[2] | sed 's///g')
+        SCORE=$(sed 's///g' <<< $PARTS[2])
 
-        if ! (( ${+COUNTS[$NID]} ))
-        then
+        if ! (( ${+COUNTS[$NID]} )); then
             COUNTS[$NID]=0
             TOTALS[$NID]=0
         fi
@@ -142,49 +113,44 @@ do
 done
 
 # TODO move this out to another script and store a local version
-
 USERS=$(curl -s -X GET "$BASE/courses/$CID/users" \
     -H "$AUTH" \
     -F "per_page=99" \
     -F "enrollment_type[]=student")
 
-MAP=$(echo $USERS | jq -r '[.[] | { uid: .id, netid: .sis_user_id }]')
+MAP=$(jq -r '[.[] | { uid: .id, netid: .sis_user_id }]' <<< $USERS)
 
-LEN=$(echo $MAP | jq '. | length')
-LEN=$((LEN - 1))
+LEN=$(($(jq '. | length' <<< $MAP) - 1))
 
 typeset -A NETTOSIS
-
 for i in {0..$LEN}; do
-    CHUNK=$(echo $MAP | jq ".[$i]")
-    USER=$(echo $CHUNK | jq -r '.uid')
-    NETID=$(echo $CHUNK | jq -r '.netid')
+    CHUNK=$(jq ".[$i]" <<< $MAP)
+    USER=$(jq -r '.uid' <<< $CHUNK)
+    NETID=$(jq -r '.netid' <<< $CHUNK)
     NETTOSIS[$NETID]=$USER
 done
 
 # publish results assignment
 
-FOO=$(curl -s -X PUT \
-    "$BASE/courses/$CID/assignments/$RESULTS_ID/" \
-    -H "$AUTH" \
-    -F "assignment[published]=true")
+#FOO=$(curl -s -X PUT \
+#    "$BASE/courses/$CID/assignments/$RESULTS_ID/" \
+#    -H "$AUTH" \
+#    -F "assignment[published]=true")
 
 # upload grades
-
 for netid sisid in ${(kv)NETTOSIS}; do
-    if ! (( ${+COUNTS[$netid]} ))
-    then
-        echo "missing $netid"
+    if ! (( ${+COUNTS[$netid]} )); then echo "missing $netid"
     else
         RESULT=$(( $TOTALS[$netid] / $COUNTS[$netid] ))
         if (( $RESULT > 100 )); then RESULT=100; fi
         echo "$netid $sisid $RESULT"
 
-        FOO=$(curl -s -X PUT \
-            "$BASE/courses/$CID/assignments/$RESULTS_ID/submissions/$sisid" \
-            -H "$AUTH" \
-            -F "submission[posted_grade]=$RESULT%")
+#        FOO=$(curl -s -X PUT \
+#            "$BASE/courses/$CID/assignments/$RESULTS_ID/submissions/$sisid" \
+#            -H "$AUTH" \
+#            -F "submission[posted_grade]=$RESULT%")
     fi
 done
 
+# clean up
 rm -rf $TEMP_DIR

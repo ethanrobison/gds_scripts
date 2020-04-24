@@ -7,7 +7,7 @@ RESULTS_FILE=$4
 
 # calculate due date 1
 
-DUE_DAY=$(date --iso-8601 -d Sun)
+DUE_DAY=$(gdate --iso-8601 -d Sun)
 DUE_TIME="T23:59:59-06:00"
 
 DUE_AT="${DUE_DAY}${DUE_TIME}"
@@ -34,7 +34,7 @@ RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
     -F "assignment[allowed_extensions]=$ALLOWED_EXT" \
     -F "assignment[due_at]=$DUE_AT" \
     -F "assignment[points_possible]=$POINTS" \
-    -F "assignment[published]=true")
+    -F "assignment[published]=false")
 
 ASSIGN_ID=$(echo "$RES" | jq '.id')
 echo "Saving assignment ID in file $EVAL_FILE, ID: $ASSIGN_ID"
