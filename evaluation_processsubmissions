@@ -1,0 +1,64 @@
+#!/bin/zsh
+
+# process subs
+typeset -A COUNTS 
+typeset -A TOTALS
+
+for file in ./$TEMP_DIR/**/*; do
+    REST=$(tail -n +3 "$file")
+    for c in ${(f)REST}; do
+        PARTS=("${(@s/,/)c}")
+        NID=$PARTS[1]
+        SCORE=$(sed 's///g' <<< $PARTS[2])
+
+        if ! (( ${+COUNTS[$NID]} )); then
+            COUNTS[$NID]=0
+            TOTALS[$NID]=0
+        fi
+
+        NEWCOUNT=$((1 + $COUNTS[$NID]))
+        NEWTOTAL=$(($SCORE + $TOTALS[$NID]))
+        COUNTS[$NID]=$NEWCOUNT
+        TOTALS[$NID]=$NEWTOTAL
+    done
+done
+
+# TODO move this out to another script and store a local version
+USERS=$(curl -s -X GET "$BASE/courses/$CID/users" \
+    -H "$AUTH" \
+    -F "per_page=99" \
+    -F "enrollment_type[]=student")
+
+MAP=$(jq -r '[.[] | { uid: .id, netid: .sis_user_id }]' <<< $USERS)
+
+LEN=$(($(jq '. | length' <<< $MAP) - 1))
+
+typeset -A NETTOSIS
+for i in {0..$LEN}; do
+    CHUNK=$(jq ".[$i]" <<< $MAP)
+    USER=$(jq -r '.uid' <<< $CHUNK)
+    NETID=$(jq -r '.netid' <<< $CHUNK)
+    NETTOSIS[$NETID]=$USER
+done
+
+# publish results assignment
+
+#FOO=$(curl -s -X PUT \
+#    "$BASE/courses/$CID/assignments/$RESULTS_ID/" \
+#    -H "$AUTH" \
+#    -F "assignment[published]=true")
+
+# upload grades
+for netid sisid in ${(kv)NETTOSIS}; do
+    if ! (( ${+COUNTS[$netid]} )); then echo "missing $netid"
+    else
+        RESULT=$(( $TOTALS[$netid] / $COUNTS[$netid] ))
+        if (( $RESULT > 100 )); then RESULT=100; fi
+        echo "$netid $sisid $RESULT"
+
+#        FOO=$(curl -s -X PUT \
+#            "$BASE/courses/$CID/assignments/$RESULTS_ID/submissions/$sisid" \
+#            -H "$AUTH" \
+#            -F "submission[posted_grade]=$RESULT%")
+    fi
+done

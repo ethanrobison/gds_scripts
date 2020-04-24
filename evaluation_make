@@ -36,7 +36,7 @@ RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
     -F "assignment[points_possible]=$POINTS" \
     -F "assignment[published]=false")
 
-ASSIGN_ID=$(echo "$RES" | jq '.id')
+ASSIGN_ID=$(jq '.id' <<< $RES)
 echo "Saving assignment ID in file $EVAL_FILE, ID: $ASSIGN_ID"
 echo "$ASSIGN_ID" > "$EVAL_FILE"
 
@@ -57,7 +57,7 @@ RES=$(curl -s -X POST "$BASE/courses/$CID/assignments" \
     -F "assignment[points_possible]=$POINTS" \
     -F "assignment[published]=false") # important! hide this from the youths :)
 
-ASSIGN_ID=$(echo "$RES" | jq '.id')
+ASSIGN_ID=$(jq '.id' <<< $RES)
 echo "Saving assignment ID in file $RESULTS_FILE, ID: $ASSIGN_ID"
 echo "$ASSIGN_ID" > "$RESULTS_FILE"
 
