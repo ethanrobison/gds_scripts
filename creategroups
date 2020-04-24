@@ -1,6 +1,7 @@
 #!/bin/zsh
 
-export CID=$(cat ./.cid)
+# TODO get these from the makefile call
+export CID=$(cat ./.cid) 
 export AUTH="Authorization: Bearer $(cat ./.secret)"
 export BASE="https://canvas.northwestern.edu/api/v1"
 
