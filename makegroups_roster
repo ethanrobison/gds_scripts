@@ -25,17 +25,19 @@ for ginfo in ${(f)groups}; do
     members=$(jq -c '.[]' <<< $res)
 
     roster_file="$ROSTER_DIR/${gid}_roster.csv"
+    echo "$gname Team Roster" >> $roster_file
     echo "netid,canvas_id,name" >> $roster_file
 
-    template_file ="$TEMPLATE_DIR/${gid}_template.csv"
+    template_file="$TEMPLATE_DIR/${gid}_template.csv"
+    echo "$gname Score Template" >> $template_file
     echo "netid,name,score" >> $template_file
 
     for mem in ${(f)members}; do
-        name=$(jq '.name' <<< $mem)
-        id=$(jq '.id' <<< $mem)
+        name=$(jq -r '.name' <<< $mem)
+        id=$(jq -r '.id' <<< $mem)
         #info=$(curl -s -X GET "$BASE/courses/$CID/users/$id" -H $AUTH)
         info=$(curl -s -X GET "$BASE/courses/$CID/users/1999" -H $AUTH)
-        netid=$(jq '.sis_user_id' <<< $info)
+        netid=$(jq -r '.sis_user_id' <<< $info)
 
         echo "$netid,$id,$name" >> $roster_file
         echo "$netid,$name,100" >> $template_file
