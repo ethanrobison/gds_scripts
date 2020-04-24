@@ -1,0 +1,43 @@
+#!/bin/zsh
+
+export CID=$(cat ./.narrativeid)
+export AUTH="Authorization: Bearer $(cat ./.secret)"
+
+export BASE="https://canvas.northwestern.edu/api/v1"
+
+export ROSTER_DIR="group_rosters"
+mkdir -p $ROSTER_DIR
+export TEMPLATE_DIR="group_templates"
+mkdir -p $TEMPLATE_DIR
+
+groups=$(curl -s -X GET "$BASE/courses/$CID/groups" \
+    -H $AUTH \
+    | jq -rc '.[] | { id: .id, name: .name }')
+
+for ginfo in ${(f)groups}; do
+    gid=$(jq '.id' <<< $ginfo)
+    gname=$(jq '.name' <<< $ginfo)
+
+    echo "Making roster/template info for group $gname"
+
+    #res=$(curl -s -X GET "$BASE/groups/$gid/users" -H $AUTH)
+    res=$(curl -s -X GET "$BASE/groups/132242/users" -H $AUTH)
+    members=$(jq -c '.[]' <<< $res)
+
+    roster_file="$ROSTER_DIR/${gid}_roster.csv"
+    echo "netid,canvas_id,name" >> $roster_file
+
+    template_file ="$TEMPLATE_DIR/${gid}_template.csv"
+    echo "netid,name,score" >> $template_file
+
+    for mem in ${(f)members}; do
+        name=$(jq '.name' <<< $mem)
+        id=$(jq '.id' <<< $mem)
+        #info=$(curl -s -X GET "$BASE/courses/$CID/users/$id" -H $AUTH)
+        info=$(curl -s -X GET "$BASE/courses/$CID/users/1999" -H $AUTH)
+        netid=$(jq '.sis_user_id' <<< $info)
+
+        echo "$netid,$id,$name" >> $roster_file
+        echo "$netid,$name,100" >> $template_file
+    done
+done
